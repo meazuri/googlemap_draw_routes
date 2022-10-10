@@ -1,19 +1,23 @@
 package com.example.googlemap
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
 import android.os.Bundle
-import android.util.Log
+import android.os.Handler
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.LiveData
 import com.example.googlemap.databinding.ActivityMapsBinding
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.MarkerOptions
-import com.google.android.gms.maps.model.PolylineOptions
+import com.google.android.gms.maps.model.*
 import org.json.JSONException
+import java.util.*
+import kotlin.collections.ArrayList
 
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback, APIResponse<GoogleDirection> {
@@ -24,6 +28,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, APIResponse<Google
     val nationalMuseum = LatLng(1.2969931081996215, 103.8484675042243)
     val  clarkQuay = LatLng(1.2894372961693554, 103.84664091155966)
     val  tampines = LatLng(1.2868724330360888, 103.80117834179211)
+
+    var carMarker :Marker ? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,9 +42,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, APIResponse<Google
             .findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
 
-        Repository.instance.getDirections(tampines,nationalMuseum,
-            arrayListOf(bugis,clarkQuay),this
-        )
 
     }
 
@@ -54,36 +57,37 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, APIResponse<Google
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
 
-        // Add a marker in Sydney and move the camera
-        //val sydney = LatLng(-34.0, 151.0)
-        //mMap.addMarker(MarkerOptions().position(sydney).title("Marker in Sydney"))
-
-
         mMap.addMarker(MarkerOptions().position(bugis).title("Marker in Bugis"))
-        mMap.addMarker(MarkerOptions().position(nationalMuseum).title("Marker in National Museum"))
+        //mMap.addMarker(MarkerOptions().position(nationalMuseum).title("Marker in National Museum"))
         mMap.addMarker(MarkerOptions().position(clarkQuay).title("Marker in ClarkQuay"))
         mMap.addMarker(MarkerOptions().position(tampines).title("Marker in Tampines"))
 
-        val points: ArrayList<LatLng> = ArrayList()
 
-
-//        try {
-//            //here is where it will draw the polyline in your map
-//            val lineOptions = PolylineOptions()
-//            lineOptions.add(bugis,
-//                clarkQuay, nationalMuseum, tampines)
-//            lineOptions.addAll(points);
-//            lineOptions.width(12f);
-//            lineOptions.color(Color.RED);
-//            mMap.addPolyline(lineOptions);
-//
-//        } catch (e: NullPointerException) {
-//            Log.e("Error", "NullPointerException onPostExecute: $e")
-//        } catch (e2: Exception) {
-//            Log.e("Error", "Exception onPostExecute: $e2")
-//        }
+        carMarker = mMap.addMarker(
+            MarkerOptions().position(nationalMuseum)
+                .title("Marker in Sydney") // below line is use to add custom marker on our map.
+                .icon(BitmapFromVector(applicationContext,R.drawable.green_car))
+        )
         val zoomLevel = 16.0f //This goes up to 21
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(bugis,zoomLevel))
+        Repository.instance.getDirections(tampines,nationalMuseum,
+            arrayListOf(bugis,clarkQuay),this
+        )
+        carMarker?.let {
+            moveMarker(it,bugis,  5000)
+        }
+
+
+    }
+    fun  moveMarker(marker: Marker, newPosition: LatLng, interval: Long){
+        val handler = Handler()
+        val runnable = Runnable {
+            kotlin.run {
+                marker.position = newPosition
+            }
+        }
+        handler.postAtTime(runnable,System.currentTimeMillis() +interval)
+        handler.postDelayed(runnable, interval);
 
     }
 
@@ -102,19 +106,41 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, APIResponse<Google
                         .geodesic(true)
                 )
             }
-
-            /*
-           for(int z = 0; z<list.size()-1;z++){
-                LatLng src= list.get(z);
-                LatLng dest= list.get(z+1);
-                Polyline line = mMap.addPolyline(new PolylineOptions()
-                .add(new LatLng(src.latitude, src.longitude), new LatLng(dest.latitude,   dest.longitude))
-                .width(2)
-                .color(Color.BLUE).geodesic(true));
-            }
-           */
         } catch (e: JSONException) {
         }
+    }
+    private fun BitmapFromVector(context: Context, vectorResId: Int): BitmapDescriptor? {
+        // below line is use to generate a drawable.
+        val vectorDrawable = ContextCompat.getDrawable(context, vectorResId)
+
+        // below line is use to set bounds to our vector drawable.
+        vectorDrawable!!.setBounds(
+            0,
+            0,
+            vectorDrawable.intrinsicWidth,
+            vectorDrawable.intrinsicHeight
+        )
+
+        // below line is use to create a bitmap for our
+        // drawable which we have added.
+        val bitmap = Bitmap.createBitmap(
+            vectorDrawable.intrinsicWidth,
+            vectorDrawable.intrinsicHeight,
+            Bitmap.Config.ARGB_8888
+        )
+
+        // below line is use to add bitmap in our canvas.
+        val canvas = Canvas(bitmap)
+
+        // below line is use to draw our
+        // vector drawable in canvas.
+        vectorDrawable.draw(canvas)
+
+        // after generating our bitmap we are returning our bitmap.
+
+        val smallMarker = Bitmap.createScaledBitmap(bitmap, 100, 100, false)
+        return BitmapDescriptorFactory.fromBitmap(smallMarker)
+
     }
     private fun decodePoly(encoded: String): List<LatLng> {
         val poly: MutableList<LatLng> = ArrayList()

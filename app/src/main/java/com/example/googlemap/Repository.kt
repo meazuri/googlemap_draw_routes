@@ -54,12 +54,14 @@ class Repository private constructor(){
 
         var waypointList :String = "optimize:true"
         val waypointsString = waypoints.map { x -> "|via:"+ x.latitude.toString() + ","+ x.longitude.toString() }      // 2
-        waypointList = waypointList.plus( waypointsString.joinToString("|"))
+            waypointList = waypointList.plus( waypointsString.joinToString("|"))
         Log.i("waypointList",waypointList)
         val queryMap = HashMap<String,String>()
         queryMap.put("origin",origin.latitude.toString().replace(" ","") +","+origin.longitude.toString())
         queryMap.put("waypoints",waypointList)
         queryMap.put("destination",dest.latitude.toString()+","+dest.longitude.toString())
+        queryMap.put("mode","driving")
+        queryMap.put("sensor","false")
         queryMap.put("key","AIzaSyB9E9yC20X7r_4tKqw1ob5OC--mnp5BIVE")
 
         retrofitService.getDirections(queryMap).enqueue(object : Callback<GoogleDirection> {
