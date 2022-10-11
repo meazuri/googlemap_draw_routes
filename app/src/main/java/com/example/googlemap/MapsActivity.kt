@@ -1,12 +1,18 @@
 package com.example.googlemap
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.os.Bundle
 import android.os.Handler
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LiveData
 import com.example.googlemap.databinding.ActivityMapsBinding
@@ -16,12 +22,12 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
 import org.json.JSONException
-import java.util.*
-import kotlin.collections.ArrayList
 
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback, APIResponse<GoogleDirection> {
 
+    private var locationByNetwork: Location? =null
+    private  var locationByGps: Location? = null
     private lateinit var mMap: GoogleMap
     private lateinit var binding: ActivityMapsBinding
     val bugis = LatLng(1.300385303831001, 103.85614863767253)
@@ -30,6 +36,11 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, APIResponse<Google
     val  tampines = LatLng(1.2868724330360888, 103.80117834179211)
 
     var carMarker :Marker ? = null
+
+    //lateinit var fusedLocationClient : FusedLocationProviderClient
+
+    private var currentLocation: Location? = null
+    lateinit var locationManager: LocationManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,6 +53,62 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, APIResponse<Google
             .findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
 
+        //To show Current Location
+       // fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+
+        if(isLocationPermissionGranted(this,100)){
+            setUpLocationService()
+        }
+
+
+
+
+    }
+    fun setUpLocationService(){
+        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+
+        val hasGps = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+//------------------------------------------------------//
+        val hasNetwork = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+        val gpsLocationListener: LocationListener = object : LocationListener {
+            override fun onLocationChanged(location: Location) {
+                locationByGps= location
+                showCurrentLocation()
+            }
+
+            override fun onStatusChanged(provider: String, status: Int, extras: Bundle) {}
+            override fun onProviderEnabled(provider: String) {}
+            override fun onProviderDisabled(provider: String) {}
+        }
+//------------------------------------------------------//
+        val networkLocationListener: LocationListener = object : LocationListener {
+            override fun onLocationChanged(location: Location) {
+                locationByNetwork= location
+                showCurrentLocation()
+            }
+
+            override fun onStatusChanged(provider: String, status: Int, extras: Bundle) {}
+            override fun onProviderEnabled(provider: String) {}
+            override fun onProviderDisabled(provider: String) {}
+        }
+
+        if (hasGps) {
+            locationManager.requestLocationUpdates(
+                LocationManager.GPS_PROVIDER,
+                5000,
+                0F,
+                gpsLocationListener
+            )
+        }
+//------------------------------------------------------//
+        if (hasNetwork) {
+            locationManager.requestLocationUpdates(
+                LocationManager.NETWORK_PROVIDER,
+                5000,
+                0F,
+                networkLocationListener
+            )
+        }
 
     }
 
@@ -58,7 +125,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, APIResponse<Google
         mMap = googleMap
 
         mMap.addMarker(MarkerOptions().position(bugis).title("Marker in Bugis"))
-        //mMap.addMarker(MarkerOptions().position(nationalMuseum).title("Marker in National Museum"))
+        mMap.addMarker(MarkerOptions().position(nationalMuseum).title("Marker in National Museum"))
         mMap.addMarker(MarkerOptions().position(clarkQuay).title("Marker in ClarkQuay"))
         mMap.addMarker(MarkerOptions().position(tampines).title("Marker in Tampines"))
 
@@ -68,8 +135,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, APIResponse<Google
                 .title("Marker in Sydney") // below line is use to add custom marker on our map.
                 .icon(BitmapFromVector(applicationContext,R.drawable.green_car))
         )
-        val zoomLevel = 16.0f //This goes up to 21
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(bugis,zoomLevel))
         Repository.instance.getDirections(tampines,nationalMuseum,
             arrayListOf(bugis,clarkQuay),this
         )
@@ -78,6 +143,58 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, APIResponse<Google
         }
 
 
+    }
+
+    fun  showCurrentLocation(){
+        val lastKnownLocationByGps =
+            locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+        lastKnownLocationByGps?.let {
+            locationByGps = lastKnownLocationByGps
+        }
+//------------------------------------------------------//
+        val lastKnownLocationByNetwork =
+            locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+        lastKnownLocationByNetwork?.let {
+            locationByNetwork = lastKnownLocationByNetwork
+        }
+//------------------------------------------------------//
+        if (locationByGps != null && locationByNetwork != null) {
+            if (locationByGps!!.accuracy > locationByNetwork!!.accuracy) {
+                currentLocation = locationByGps
+                showYourLocatioin()
+                // use latitude and longitude as per your need
+            } else {
+                currentLocation = locationByNetwork
+                showYourLocatioin()
+                // use latitude and longitude as per your need
+            }
+        }else if(locationByGps !=null){
+            currentLocation = locationByGps
+            showYourLocatioin()
+        }else{
+            currentLocation = locationByNetwork
+            showYourLocatioin()
+        }
+    }
+    fun showYourLocatioin(){
+        val latitude = currentLocation?.latitude
+        val longitude = currentLocation?.longitude
+
+        val currentLocation = if (longitude != null && latitude != null ) {
+            LatLng(latitude,longitude)
+        } else {
+            null
+        }
+        currentLocation?.let {
+            mMap.addMarker(
+                MarkerOptions().position(
+                    currentLocation
+                ).title("It's Me!").icon(BitmapFromVector(applicationContext,R.drawable.ic_user))
+            )
+            val zoomLevel = 12.0f //This goes up to 21
+            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(currentLocation,zoomLevel))
+
+        }
     }
     fun  moveMarker(marker: Marker, newPosition: LatLng, interval: Long){
         val handler = Handler()
@@ -182,6 +299,40 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, APIResponse<Google
         data.value?.let {
             drawPath(it)
 
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        if (requestCode == 100) {
+            // Request for permission.
+            if (grantResults.size > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                if (ActivityCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.ACCESS_FINE_LOCATION
+                    ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    return
+                }
+                setUpLocationService()
+            } else {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    ),
+                    100
+                )
+            }
         }
     }
 }

@@ -52,8 +52,8 @@ class Repository private constructor(){
     fun getDirections(origin: LatLng,dest:LatLng,waypoints:ArrayList<LatLng>, dataResponse : APIResponse<GoogleDirection>): MutableLiveData<GoogleDirection> {
         var data = MutableLiveData<GoogleDirection>()
 
-        var waypointList :String = "optimize:true"
-        val waypointsString = waypoints.map { x -> "|via:"+ x.latitude.toString() + ","+ x.longitude.toString() }      // 2
+        var waypointList :String = "optimize:true|"
+        val waypointsString = waypoints.map { x -> "via:"+ x.latitude.toString() + ","+ x.longitude.toString() }      // 2
             waypointList = waypointList.plus( waypointsString.joinToString("|"))
         Log.i("waypointList",waypointList)
         val queryMap = HashMap<String,String>()
@@ -62,7 +62,7 @@ class Repository private constructor(){
         queryMap.put("destination",dest.latitude.toString()+","+dest.longitude.toString())
         queryMap.put("mode","driving")
         queryMap.put("sensor","false")
-        queryMap.put("key","AIzaSyB9E9yC20X7r_4tKqw1ob5OC--mnp5BIVE")
+        queryMap.put("key",BuildConfig.MAPS_API_KEY)
 
         retrofitService.getDirections(queryMap).enqueue(object : Callback<GoogleDirection> {
             override fun onResponse(
